@@ -14,6 +14,7 @@ module.exports = (common) => {
     let ipfsA
     let ipfsB
     let withGo
+    let ipfsBId
     const key = 'QmUBdnXXPyoDFXj3Hj39dNJ5VkN3QFRskXxcGaYFBB8CNR'
 
     before(function (done) {
@@ -29,18 +30,18 @@ module.exports = (common) => {
             ipfsA = node
             withGo = node.peerId.agentVersion.startsWith('go-ipfs')
             cb()
-            //ipfsA.block.get(key)
-              //.then(() => {})
-              //.catch(() => {})
-            //cb()
           }),
           (cb) => spawn.spawnNodeWithId(factory, (err, node) => {
             expect(err).to.not.exist()
             ipfsB = node
-            ipfsB.block.get(new CID(key))
-              .then(() => {})
-              .catch(() => {})
-            ipfsA.swarm.connect(node.peerId.addresses[0], cb)
+            ipfsBId = node.peerId
+            ipfsA.swarm.connect(ipfsBId.addresses[0], (err) => {
+              expect(err).to.not.exist()
+              ipfsB.block.get(new CID(key))
+                .then(() => {})
+                .catch(() => {})
+              cb()
+            })
           })
         ], done)
       })
@@ -49,7 +50,7 @@ module.exports = (common) => {
     after((done) => common.teardown(done))
 
     it('.stat', (done) => {
-      ipfsA.bitswap.stat((err, stats) => {
+      ipfsB.bitswap.stat((err, stats) => {
         expect(err).to.not.exist()
         statsTests.expectIsBitswap(err, stats)
         done()
@@ -57,7 +58,7 @@ module.exports = (common) => {
     })
 
     it('.wantlist', (done) => {
-      ipfsA.bitswap.wantlist((err, list) => {
+      ipfsB.bitswap.wantlist((err, list) => {
         expect(err).to.not.exist()
         expect(list.Keys).to.have.length(1);
         expect(list.Keys[0]['/']).to.equal(key)
@@ -66,7 +67,7 @@ module.exports = (common) => {
     })
 
     it('.wantlist peerid', (done) => {
-      ipfsA.bitswap.wantlist(ipfsBId, (err, list) => {
+      ipfsA.bitswap.wantlist(ipfsBId.id, (err, list) => {
         expect(err).to.not.exist()
         expect(list.Keys[0]['/']).to.equal(key)
         done()
@@ -77,9 +78,9 @@ module.exports = (common) => {
       if (withGo) {
         this.skip()
       }
-      ipfsA.bitswap.unwant(key, (err) => {
+      ipfsB.bitswap.unwant(key, (err) => {
         expect(err).to.not.exist();
-        ipfsA.bitswap.wantlist((err, list) => {
+        ipfsB.bitswap.wantlist((err, list) => {
           expect(err).to.not.exist();
           expect(list.Keys).to.be.empty()
           done()
